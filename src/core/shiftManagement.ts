@@ -1,4 +1,5 @@
 import {
+  BlockedWorker,
   HealthCareFacility,
   Prisma,
   Shift,
@@ -9,8 +10,9 @@ import { prisma } from "../prismaClient";
 
 type Timestamps = "createdAt" | "updatedAt";
 
-type GenericSuccessResponse = {
-  status: "ok";
+type Status<T> = {
+  error?: string | unknown,
+  data?: T,
 };
 
 export function listAllShifts(): Promise<Shift[]> {
@@ -63,12 +65,16 @@ export function applyToShift(
   });
 }
 
-export function rateWorker(
+export async function rateWorker(
   workerUuid: Worker["uuid"],
   shiftUuid: Shift["uuid"],
   rating: number,
-): Promise<ShiftAssignment> {
-  return prisma.shiftAssignment.update({
+): Promise<Status<ShiftAssignment>> {
+  // Ensure the rating is a valid number withing the [1, 5] range.
+  if (!(Number.isInteger(rating) && rating >= 1 && rating <= 5))
+    return { error: "Invalid rating format, must be integer in range [1,5]" }
+
+  const shiftAssignment = await prisma.shiftAssignment.update({
     where: {
       shiftUuid_workerUuid: {
         shiftUuid,
@@ -76,14 +82,17 @@ export function rateWorker(
       },
     },
     data: { rating },
+    include: { worker: true },
   });
+
+  return { data: shiftAssignment };
 }
 
 export async function blockWorker(
   workerUuid: Worker["uuid"],
   shiftUuid: Shift["uuid"],
   blockReason: string,
-): Promise<GenericSuccessResponse> {
+): Promise<Status<BlockedWorker>> {
   const shift = await prisma.shift.findUniqueOrThrow({
     where: {
       uuid: shiftUuid,
@@ -94,15 +103,26 @@ export async function blockWorker(
       uuid: shift.facilityUuid,
     },
   });
-  await prisma.blockedWorker.create({
-    data: {
-      facilityUuid: facility.uuid,
-      shiftUuid,
-      workerUuid,
-      blockReason,
-      createdAt: new Date(),
-    },
-  });
+  try {
+    const blocked = await prisma.blockedWorker.create({
+      data: {
+        facilityUuid: facility.uuid,
+        shiftUuid,
+        workerUuid,
+        blockReason,
+        createdAt: new Date(),
+      },
+      include: { worker: true, facility: true }
+    });
+    return { data: blocked };
+  } catch (err) {
+    console.error(err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError)
+      return {
+        error: err.code === "P2002" ?
+          "Worker already blocked at this facility" : err.meta?.cause
+      };
 
-  return { status: "ok" };
+    return { error: "Unknown" };
+  }
 }
