@@ -64,11 +64,14 @@ v1.get(`${workersBase}/:uuid/shifts`, async (req, res) => {
 });
 
 v1.post(`${workersBase}/:uuid/shifts`, async (req, res) => {
-  const shift = await applyToShift(
+  const { error, data } = await applyToShift(
     req.params.uuid,
     req.body.shiftUuid,
   );
-  res.send(JSON.stringify(shift));
+  if (error)
+    res.status(400).json({ error });
+  else
+    res.json(data);
 });
 
 // Ratings

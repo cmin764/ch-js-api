@@ -8,12 +8,26 @@ import {
 } from "@prisma/client";
 import { prisma } from "../prismaClient";
 
-type Timestamps = "createdAt" | "updatedAt";
 
+type Timestamps = "createdAt" | "updatedAt";
 type Status<T> = {
   error?: string | unknown,
   data?: T,
 };
+
+async function shiftToFacility(shiftUuid: Shift["uuid"]): Promise<HealthCareFacility> {
+  const shift = await prisma.shift.findUniqueOrThrow({
+    where: {
+      uuid: shiftUuid,
+    },
+  });
+  const facility = await prisma.healthCareFacility.findUniqueOrThrow({
+    where: {
+      uuid: shift.facilityUuid,
+    },
+  });
+  return facility;
+}
 
 export function listAllShifts(): Promise<Shift[]> {
   return prisma.shift.findMany();
@@ -53,16 +67,40 @@ export function createShift(
   });
 }
 
-export function applyToShift(
+export async function applyToShift(
   workerUuid: Worker["uuid"],
   shiftUuid: Shift["uuid"],
-): Promise<ShiftAssignment> {
-  return prisma.shiftAssignment.create({
-    data: {
-      shift: { connect: { uuid: shiftUuid } },
-      worker: { connect: { uuid: workerUuid } },
-    },
+): Promise<Status<ShiftAssignment>> {
+  const facility = await shiftToFacility(shiftUuid);
+  const blocked = await prisma.blockedWorker.findUnique({
+    where: {
+      facilityUuid_workerUuid: { facilityUuid: facility.uuid, workerUuid }
+    }
   });
+  if (blocked)
+    return {
+      error: `Can't apply to shift as worker is blocked at facility` +
+        ` '${facility.name}' due to reason: ${blocked.blockReason}`
+    };
+
+  try {
+    const shiftAssignment = await prisma.shiftAssignment.create({
+      data: {
+        shift: { connect: { uuid: shiftUuid } },
+        worker: { connect: { uuid: workerUuid } },
+      },
+    });
+    return { data: shiftAssignment };
+  } catch (err) {
+    console.error(err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError)
+      return {
+        error: err.code === "P2002" ?
+          "Worker already assigned to this shift" : err.meta?.cause
+      };
+
+    return { error: "Unknown" };
+  }
 }
 
 export async function rateWorker(
@@ -93,16 +131,18 @@ export async function blockWorker(
   shiftUuid: Shift["uuid"],
   blockReason: string,
 ): Promise<Status<BlockedWorker>> {
-  const shift = await prisma.shift.findUniqueOrThrow({
+  const shiftAssignment = await prisma.shiftAssignment.findUnique({
     where: {
-      uuid: shiftUuid,
+      shiftUuid_workerUuid: {
+        shiftUuid,
+        workerUuid,
+      },
     },
   });
-  const facility = await prisma.healthCareFacility.findUniqueOrThrow({
-    where: {
-      uuid: shift.facilityUuid,
-    },
-  });
+  if (shiftAssignment == null)
+    return { error: "Can't block worker that didn't take this shift" };
+
+  const facility = await shiftToFacility(shiftUuid);
   try {
     const blocked = await prisma.blockedWorker.create({
       data: {

@@ -115,6 +115,7 @@ components:
           type: string
         rating:
           type: number
+          nullable: true
         shift:
           $ref: '#/components/schemas/Shift'
         worker:
@@ -317,6 +318,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShiftAssignment'
+        '400':
+          description: Couldn't apply to Shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericError'
   /workers/{workerUuid}/shifts/{shiftUuid}/rate:
     parameters:
       - name: workerUuid
