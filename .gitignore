@@ -1,3 +1,9 @@
 node_modules
 # Keep environment variables out of version control
 .env
+
+# Avoid backups, dumps
+dump.sql
+
+# Do not commit distributed transpiled TS to JS
+dist/
