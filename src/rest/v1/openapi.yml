@@ -113,6 +113,8 @@ components:
           type: string
         workerUuid:
           type: string
+        rating:
+          type: number
         shift:
           $ref: '#/components/schemas/Shift'
         worker:
@@ -127,6 +129,39 @@ components:
           type: string
       required:
         - shiftUuid
+    RateWorkerInput:
+      type: object
+      properties:
+        shiftUuid:
+          type: string
+        workerUuid:
+          type: string
+        rating:
+          type: integer
+      required:
+        - shiftUuid
+        - workerUuid
+        - rating
+    BlockWorkerInput:
+      type: object
+      properties:
+        shiftUuid:
+          type: string
+        workerUuid:
+          type: string
+        blockReason:
+          type: string
+      required:
+        - shiftUuid
+        - workerUuid
+        - blockReason
+    GenericSuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
 paths:
   /:
     summary: The application health check
@@ -256,7 +291,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  shifts:
+                  shiftAssignments:
                     type: array
                     items:
                       $ref: '#/components/schemas/Shift'
@@ -287,3 +322,31 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Shift'
+  /rate-worker:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateWorkerInput'
+      responses:
+        '200':
+          description: Successfully rated a Worker for a Shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftAssignment'
+  /block-worker:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockWorkerInput'
+      responses:
+        '200':
+          description: Successfully blocked a Worker from working shifts for a Healthcare facility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'

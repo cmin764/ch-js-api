@@ -11,16 +11,18 @@ datasource db {
 }
 
 model HealthCareFacility {
-  uuid   String  @id @default(uuid())
-  shifts Shift[]
-  name   String
+  uuid           String          @id @default(uuid())
+  shifts         Shift[]
+  name           String
+  blockedWorkers BlockedWorker[]
 }
 
 model Worker {
-  uuid             String            @id @default(uuid())
-  shiftAssignments ShiftAssignment[]
-  firstName        String
-  lastName         String
+  uuid                String            @id @default(uuid())
+  shiftAssignments    ShiftAssignment[]
+  firstName           String
+  lastName            String
+  blockedAtFacilities BlockedWorker[]
 }
 
 model Shift {
@@ -35,6 +37,7 @@ model Shift {
   startTime        DateTime
   endTime          DateTime
   workerSlots      Int
+  blockedWorkers   BlockedWorker[]
 }
 
 model ShiftAssignment {
@@ -42,6 +45,20 @@ model ShiftAssignment {
   workerUuid String
   shift      Shift  @relation(fields: [shiftUuid], references: [uuid])
   worker     Worker @relation(fields: [workerUuid], references: [uuid])
+  rating     Int?
 
   @@id([shiftUuid, workerUuid])
+}
+
+model BlockedWorker {
+  shiftUuid    String
+  workerUuid   String
+  facilityUuid String
+  shift        Shift              @relation(fields: [shiftUuid], references: [uuid])
+  worker       Worker             @relation(fields: [workerUuid], references: [uuid])
+  facility     HealthCareFacility @relation(fields: [facilityUuid], references: [uuid])
+  createdAt    DateTime
+  blockReason  String
+
+  @@id([facilityUuid, workerUuid])
 }
