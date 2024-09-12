@@ -64,11 +64,29 @@ v1.get(`${workersBase}/:uuid/shifts`, async (req, res) => {
 });
 
 v1.post(`${workersBase}/:uuid/shifts`, async (req, res) => {
-  const shift = await applyToShift(
+  const { error, data } = await applyToShift(
     req.params.uuid,
     req.body.shiftUuid,
   );
-  res.send(JSON.stringify(shift));
+  if (error)
+    res.status(400).json({ error });
+  else
+    res.json(data);
+});
+
+// Ratings
+v1.post(`${workersBase}/:workerUuid/shifts/:shiftUuid/rate`, async (req, res) => {
+  const { workerUuid, shiftUuid } = req.params;
+
+  /* Note that ratings can be currently replaced at any time. Maybe we'd like to have
+  them read-only once they are set.
+  */
+  const rating = Number(req.body.rating);
+  const { error, data } = await rateWorker(workerUuid, shiftUuid, rating);
+  if (error)
+    res.status(400).json({ error });
+  else
+    res.json(data);
 });
 
 // Shifts
@@ -78,16 +96,12 @@ v1.get(shiftsBase, async (req, res) => {
   res.send(JSON.stringify({ shifts }));
 });
 
-// Ratings
-v1.post("/rate-worker", async (req, res) => {
-  const { workerUuid, shiftUuid, rating } = req.body;
-  const shiftAssignment = await rateWorker(workerUuid, shiftUuid, rating);
-  res.send(JSON.stringify({ shiftAssignment }));
-});
-
 // Block workers
 v1.post("/block-worker", async (req, res) => {
   const { workerUuid, shiftUuid, blockReason } = req.body;
-  const result = await blockWorker(workerUuid, shiftUuid, blockReason);
-  res.send(JSON.stringify(result));
+  const { error, data } = await blockWorker(workerUuid, shiftUuid, blockReason);
+  if (error)
+    res.status(400).json({ error });
+  else
+    res.json(data);
 });
